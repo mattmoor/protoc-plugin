@@ -1,0 +1,89 @@
+
+apiVersion: serving.knative.dev/v1alpha1
+kind: Service
+metadata:
+  name: simple-baz
+spec:
+  revisionTemplate:
+    spec:
+      serviceAccountName: baz-robot
+      containerConcurrency: 0
+      container:
+        image: github.com/blurg/bleh/cmd/thing
+        env:
+
+---
+
+apiVersion: serving.knative.dev/v1alpha1
+kind: Service
+metadata:
+  name: simple-bar
+spec:
+  revisionTemplate:
+    spec:
+      serviceAccountName: bar-robot
+      containerConcurrency: 0
+      container:
+        image: github.com/blurg/bleh/cmd/thing
+        env:
+
+---
+
+apiVersion: serving.knative.dev/v1alpha1
+kind: Service
+metadata:
+  name: simple-foo
+spec:
+  revisionTemplate:
+    spec:
+      serviceAccountName: foo-robot
+      containerConcurrency: 12
+      container:
+        image: github.com/blurg/bleh/cmd/thing
+        env:
+
+        - name: FOO
+          value: BAR        
+
+---
+
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: grpc-gateway
+spec:
+  gateways:
+  - knative-shared-gateway.knative-serving.svc.cluster.local
+  hosts:
+  - mattmoor.io
+  http:
+
+  - match:
+    - uri:
+        prefix: /example.Simple/Foo
+    rewrite:
+      authority: simple-foo.default.svc.cluster.local
+    route:
+      - destination:
+          host: knative-ingressgateway.istio-system.svc.cluster.local
+        weight: 100
+
+  - match:
+    - uri:
+        prefix: /example.Simple/Bar
+    rewrite:
+      authority: simple-bar.default.svc.cluster.local
+    route:
+      - destination:
+          host: knative-ingressgateway.istio-system.svc.cluster.local
+        weight: 100
+
+  - match:
+    - uri:
+        prefix: /example.Simple/Baz
+    rewrite:
+      authority: simple-baz.default.svc.cluster.local
+    route:
+      - destination:
+          host: knative-ingressgateway.istio-system.svc.cluster.local
+        weight: 100

@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+import "github.com/mattmoor/protoc-plugin/proto/krpc.proto";
+
+package example;
+
+service Simple {
+  rpc Foo (FooRequest) returns (FooReply) {
+    option (krpc.options) = {
+        service_account: "foo-robot"
+        container_concurrency: 12
+        env: {
+          name: "FOO"
+          value: "BAR"
+        }
+    //    resources: {
+    //       requests: {
+    //          cpu: "100m"
+    //       }
+    //       limits: {
+    //          cpu: "1000m"
+    //       }
+    //    }
+    };
+  }
+  rpc Bar (BarRequest) returns (BarReply) {
+    option (krpc.options) = {
+        service_account: "bar-robot"
+    };
+  }
+  rpc Baz (BazRequest) returns (BazReply) {
+    option (krpc.options) = {
+        service_account: "baz-robot"
+    };
+  }
+}
+
+message FooRequest {
+  string name = 1;
+}
+
+message FooReply {
+  string message = 1;
+}
+
+message BarRequest {
+  string name = 1;
+}
+
+message BarReply {
+  string message = 1;
+}
+
+message BazRequest {
+  string name = 1;
+}
+
+message BazReply {
+  string message = 1;
+}
