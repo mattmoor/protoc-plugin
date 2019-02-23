@@ -2,48 +2,46 @@
 apiVersion: serving.knative.dev/v1alpha1
 kind: Service
 metadata:
-  name: simple-baz
+  name: pingservice-pingstream
 spec:
-  revisionTemplate:
-    spec:
-      serviceAccountName: baz-robot
-      containerConcurrency: 0
-      container:
-        image: github.com/blurg/bleh/cmd/thing
-        env:
+  runLatest:
+    configuration:
+      revisionTemplate:
+        spec:
+          serviceAccountName: default
+          containerConcurrency: 2
+          container:
+            image: docker.io/mattmoor/grpc-ping-go
+            ports:
+            - name: h2c
+              containerPort: 8080
+            env:
+
+            - name: FOO
+              value: BAZ
 
 ---
 
 apiVersion: serving.knative.dev/v1alpha1
 kind: Service
 metadata:
-  name: simple-bar
+  name: pingservice-ping
 spec:
-  revisionTemplate:
-    spec:
-      serviceAccountName: bar-robot
-      containerConcurrency: 0
-      container:
-        image: github.com/blurg/bleh/cmd/thing
-        env:
+  runLatest:
+    configuration:
+      revisionTemplate:
+        spec:
+          serviceAccountName: default
+          containerConcurrency: 20
+          container:
+            image: docker.io/mattmoor/grpc-ping-go
+            ports:
+            - name: h2c
+              containerPort: 8080
+            env:
 
----
-
-apiVersion: serving.knative.dev/v1alpha1
-kind: Service
-metadata:
-  name: simple-foo
-spec:
-  revisionTemplate:
-    spec:
-      serviceAccountName: foo-robot
-      containerConcurrency: 12
-      container:
-        image: github.com/blurg/bleh/cmd/thing
-        env:
-
-        - name: FOO
-          value: BAR        
+            - name: FOO
+              value: BAR
 
 ---
 
@@ -53,37 +51,32 @@ metadata:
   name: grpc-gateway
 spec:
   gateways:
-  - knative-shared-gateway.knative-serving.svc.cluster.local
+  - knative-ingress-gateway.knative-serving.svc.cluster.local
+  - mesh
   hosts:
   - mattmoor.io
   http:
 
   - match:
     - uri:
-        prefix: /example.Simple/Foo
+        exact: /ping.PingService/Ping
     rewrite:
-      authority: simple-foo.default.svc.cluster.local
+      authority: pingservice-ping.default.svc.cluster.local
     route:
       - destination:
-          host: knative-ingressgateway.istio-system.svc.cluster.local
+          host: istio-ingressgateway.istio-system.svc.cluster.local
+          port:
+            number: 80
         weight: 100
 
   - match:
     - uri:
-        prefix: /example.Simple/Bar
+        exact: /ping.PingService/PingStream
     rewrite:
-      authority: simple-bar.default.svc.cluster.local
+      authority: pingservice-pingstream.default.svc.cluster.local
     route:
       - destination:
-          host: knative-ingressgateway.istio-system.svc.cluster.local
-        weight: 100
-
-  - match:
-    - uri:
-        prefix: /example.Simple/Baz
-    rewrite:
-      authority: simple-baz.default.svc.cluster.local
-    route:
-      - destination:
-          host: knative-ingressgateway.istio-system.svc.cluster.local
+          host: istio-ingressgateway.istio-system.svc.cluster.local
+          port:
+            number: 80
         weight: 100

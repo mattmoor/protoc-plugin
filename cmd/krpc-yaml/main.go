@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/protoc-gen-go/plugin"
 	"github.com/golang/protobuf/protoc-gen-go/descriptor"
+	"github.com/golang/protobuf/protoc-gen-go/plugin"
 
 	kpb "github.com/mattmoor/protoc-plugin/proto/krpc"
 )
@@ -38,8 +38,8 @@ const domain = "mattmoor.io"
 // }
 
 func method(importpath string, fd *descriptor.FileDescriptorProto, sdp *descriptor.ServiceDescriptorProto, mdp *descriptor.MethodDescriptorProto,
-            resp *plugin_go.CodeGeneratorResponse) (string, string, error) {
-        // directory := fd.GetPackage() + "/" + sdp.GetName() + "/" + mdp.GetName()
+	resp *plugin_go.CodeGeneratorResponse) (string, string, error) {
+	// directory := fd.GetPackage() + "/" + sdp.GetName() + "/" + mdp.GetName()
 
 	// TODO(mattmoor): If we build-in the `ko`-like functionality, then this need not be a full import path.
 	// importpath := "github.com/fooxbar/baz/outpath/" + directory
@@ -49,7 +49,7 @@ func method(importpath string, fd *descriptor.FileDescriptorProto, sdp *descript
 	var options kpb.Options
 	addr, err := proto.GetExtension(mdp.Options, kpb.E_Options)
 	if err == nil {
-	   options = *(addr.(*kpb.Options))
+		options = *(addr.(*kpb.Options))
 	}
 
 	yamlContent := fmt.Sprintf(`
@@ -58,21 +58,26 @@ kind: Service
 metadata:
   name: %s
 spec:
-  revisionTemplate:
-    spec:
-      serviceAccountName: %s
-      containerConcurrency: %d
-      container:
-        image: %s
-        env:
+  runLatest:
+    configuration:
+      revisionTemplate:
+        spec:
+          serviceAccountName: %s
+          containerConcurrency: %d
+          container:
+            image: %s
+            ports:
+            - name: h2c
+              containerPort: 8080
+            env:
 `, serviceName, options.GetServiceAccount(), options.ContainerConcurrency, importpath)
 
-        for _, kv := range options.Env {
-	  yamlContent = yamlContent + fmt.Sprintf(`
-        - name: %s
-          value: %s        
+	for _, kv := range options.Env {
+		yamlContent = yamlContent + fmt.Sprintf(`
+            - name: %s
+              value: %s
 `, kv.GetName(), kv.GetValue())
- 	}
+	}
 
 	return serviceName, yamlContent, nil
 }
@@ -89,25 +94,25 @@ func doit(request *plugin_go.CodeGeneratorRequest) (*plugin_go.CodeGeneratorResp
 			continue
 		}
 
-		type routingRule struct{
-		    Method string
-                    Path string
-                    ServiceName string
-		    YAMLContent string
+		type routingRule struct {
+			Method      string
+			Path        string
+			ServiceName string
+			YAMLContent string
 		}
 
 		var rules []routingRule
 		for _, sdp := range fd.Service {
-		        for _, mdp := range sdp.Method {
-			        serviceName, yamlContent, err := method(request.GetParameter(), fd, sdp, mdp, &resp)
+			for _, mdp := range sdp.Method {
+				serviceName, yamlContent, err := method(request.GetParameter(), fd, sdp, mdp, &resp)
 				if err != nil {
-				   return nil, err
+					return nil, err
 				}
 				rules = append(rules, routingRule{
-				  Method: "POST",
-				  Path: fmt.Sprintf("/%s.%s/%s", fd.GetPackage(), sdp.GetName(), mdp.GetName()),
-				  ServiceName: serviceName,
-				  YAMLContent: yamlContent,
+					Method:      "POST",
+					Path:        fmt.Sprintf("/%s.%s/%s", fd.GetPackage(), sdp.GetName(), mdp.GetName()),
+					ServiceName: serviceName,
+					YAMLContent: yamlContent,
 				})
 			}
 		}
@@ -120,7 +125,8 @@ metadata:
   name: grpc-gateway
 spec:
   gateways:
-  - knative-shared-gateway.knative-serving.svc.cluster.local
+  - knative-ingress-gateway.knative-serving.svc.cluster.local
+  - mesh
   hosts:
   - %s
   http:
@@ -130,15 +136,17 @@ spec:
 			content = rr.YAMLContent + "\n---\n" + content + fmt.Sprintf(`
   - match:
     - uri:
-        prefix: %s
+        exact: %s
     rewrite:
       authority: %s.%s.svc.cluster.local
     route:
       - destination:
-          host: knative-ingressgateway.istio-system.svc.cluster.local
+          host: istio-ingressgateway.istio-system.svc.cluster.local
+          port:
+            number: 80
         weight: 100
 `, rr.Path, rr.ServiceName, "default")
-   	        }
+		}
 
 		name := "service.yaml"
 		// log.Printf("Content[%q] = %s", name, content)
@@ -152,9 +160,9 @@ spec:
 }
 
 func main() {
-        // proto.RegisterExtension(serviceAccount)
+	// proto.RegisterExtension(serviceAccount)
 
-        // log.Printf("Args: %v", os.Args)
+	// log.Printf("Args: %v", os.Args)
 	bytes, err := ioutil.ReadAll(os.Stdin)
 	if err != nil {
 		log.Fatalf("Unable to read stdin: %v", err)
